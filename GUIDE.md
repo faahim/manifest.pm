@@ -263,6 +263,39 @@ Remember: ONE TASK ONLY.`,
 })
 ```
 
+## Agent-Native Design
+
+If your project is meant to be **run by AI agents** (not just built by them), consider these principles:
+
+### Use Native Tools Over CLI Wrappers
+
+| Task | ❌ Generic | ✅ Agent-Native |
+|------|-----------|-----------------|
+| Web scraping | subprocess to CLI | `browser` tool directly |
+| HTTP requests | curl/fetch CLI | `web_fetch` tool |
+| File ops | shell commands | `read`/`write` tools |
+
+### Design for Agent Execution
+
+1. **Scripts are agent tasks** — Written to be run by spawned sub-agents
+2. **Error messages for agents** — Clear, actionable, not cryptic
+3. **Leverage reasoning** — Agents can decide, not just execute
+4. **Context is maintained** — Within session, everything remembered
+
+### Add Agent Instructions
+
+Document how the executing agent should use each module:
+
+```typescript
+/**
+ * ## Agent Instructions
+ * 
+ * To use this module:
+ * 1. Call web_fetch({ url, extractMode: 'text' })
+ * 2. Pass result to extractContacts(content)
+ */
+```
+
 ## Future Improvements
 
 - [ ] `manifest init` — CLI to scaffold new project
@@ -273,6 +306,7 @@ Remember: ONE TASK ONLY.`,
 - [ ] Stale claim auto-cleanup
 - [ ] Velocity metrics
 - [ ] Dashboard generator
+- [ ] Agent-native design checklist
 
 ---
 
