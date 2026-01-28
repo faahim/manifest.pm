@@ -1,0 +1,28 @@
+{
+  "project": "{{PROJECT_NAME}}",
+  "updated": "{{TIMESTAMP}}",
+  "summary": {
+    "total": 0,
+    "pending": 0,
+    "claimed": 0,
+    "inProgress": 0,
+    "completed": 0,
+    "failed": 0,
+    "blocked": 0
+  },
+  "phases": {
+    "phase-0": {
+      "name": "Foundation",
+      "total": 0,
+      "completed": 0,
+      "status": "not_started"
+    },
+    "phase-1": {
+      "name": "Core Features",
+      "total": 0,
+      "completed": 0,
+      "status": "not_started"
+    }
+  },
+  "tasks": []
+}
