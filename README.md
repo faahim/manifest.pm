@@ -147,6 +147,29 @@ When working with an agent, use these commands:
 | `history` | Show recent activity |
 | `plan` | Review/update roadmap |
 
+## 🔍 Phase Review Protocol
+
+After completing a phase, run a lightweight QA review:
+
+```javascript
+sessions_spawn({
+  task: `QA Review for Phase 1...`,
+  label: "project-qa-phase-1",
+  runTimeoutSeconds: 600
+})
+```
+
+**QA Agent does (single pass, ~5 min):**
+1. ✅ Build check
+2. 👀 Spot-read main files
+3. 🔍 Red flag scan (hardcoded values, TODOs, auth issues)
+4. 📋 Verify 2-3 acceptance criteria
+5. 📝 Output report with recommendation
+
+**Token budget:** ~20-30k | **Time:** ~5 min
+
+See `GUIDE.md` for full protocol details.
+
 ## 🧠 For AI Agents
 
 ### Starting a Session

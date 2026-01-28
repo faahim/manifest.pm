@@ -263,6 +263,121 @@ Remember: ONE TASK ONLY.`,
 })
 ```
 
+## Phase Review Protocol
+
+After completing a phase, run a lightweight QA review before starting the next phase.
+
+### When to Trigger
+- All tasks in a phase are marked `completed`
+- Before starting the first task of the next phase
+
+### QA Agent Input (Pre-Summarized)
+
+Keep the input concise to minimize tokens:
+
+```markdown
+## Phase N Review Request
+
+**Phase:** N - Phase Name
+**Tasks Completed:** X tasks
+**Key Features:**
+- Feature 1 (from task titles)
+- Feature 2
+- Feature 3
+
+**Main Files Created/Modified:**
+- src/path/to/file1.ts
+- src/path/to/file2.ts
+- (list ~5-10 core files only)
+
+**Acceptance Criteria Summary:**
+- Criterion 1
+- Criterion 2
+- (condensed, not full task files)
+```
+
+### QA Agent Actions (Single Pass, ~5 min)
+
+1. ✅ **Build Check:** `npm run build` passes
+2. 👀 **Spot-Read:** Main files only (not everything)
+3. 🔍 **Red Flag Scan:**
+   - Hardcoded values / TODOs left behind
+   - Unused imports / dead code
+   - Missing error handling
+   - Auth/security bypasses
+   - Console.logs left in production code
+4. 📋 **Spot Verification:** Check 2-3 key acceptance criteria
+5. 📝 **Report:** Output findings
+
+### QA Report Format
+
+```markdown
+## Phase N Review
+
+**Build:** ✅ Passes | ❌ Fails (reason)
+**Code Quality:** ✅ No major issues | ⚠️ Issues found
+**Feature Verification:** ✅ Spot-checked X/Y tasks
+
+### Issues Found (if any)
+- P1-005: Consider adding loading state for slow connections
+- P1-009: Hardcoded "20" should be config value
+
+### Red Flags (if any)
+- ❌ Auth bypass in /api/admin (CRITICAL)
+- ⚠️ Console.log in production code
+
+### Recommendation
+✅ Proceed to Phase N+1
+⚠️ Fix issues before proceeding
+❌ Major issues — do not proceed
+```
+
+### Spawn Template
+
+```javascript
+sessions_spawn({
+  task: `You are a QA reviewer for {{PROJECT}}.
+
+## Phase {{N}} Review Request
+
+**Tasks Completed:** {{X}} tasks
+**Key Features:**
+{{FEATURE_LIST}}
+
+**Main Files:**
+{{FILE_LIST}}
+
+**YOUR JOB:**
+1. Run \`cd {{PROJECT_PATH}} && npm run build\`
+2. Spot-read the main files listed above
+3. Check for red flags (hardcoded values, TODOs, console.logs, auth issues)
+4. Verify 2-3 acceptance criteria actually work
+5. Output a Phase Review report
+
+Be concise. Single pass. ~5 minutes max.`,
+  label: "{{project}}-qa-phase-{{n}}",
+  runTimeoutSeconds: 600
+})
+```
+
+### Token Budget
+- **Target:** ~20-30k tokens
+- **How:** Pre-summarize input, single pass, no back-and-forth
+
+### What It Catches
+- Build failures
+- Obvious bugs
+- Incomplete features
+- Security issues
+- Code quality problems
+
+### What It Doesn't Replace
+- Human QA (you should still test manually)
+- Comprehensive testing (unit, integration, e2e)
+- Security audits
+
+---
+
 ## Agent-Native Design
 
 If your project is meant to be **run by AI agents** (not just built by them), consider these principles:
