@@ -132,12 +132,14 @@ Any observations or issues.
 
 ## After Planning
 
-### Update Tracking Files
+### Update Canonical Planning Files
 
-1. **INDEX.json** — Add all new tasks
-2. **BOARD.md** — Create phase section with tasks
-3. **docs/ROADMAP.md** — Update phase status
-4. **execution/LOG.md** — Log phase planning completion
+1. **tasks/MANIFEST.json** — Add all new tasks (canonical)
+2. **docs/ROADMAP.md** — Update phase status
+3. **execution/LOG.md** — Log phase planning completion (short)
+4. Run generators:
+   - `node tools/manifest/validate.mjs`
+   - `node tools/manifest/render.mjs` (regenerates tasks/INDEX.json + tasks/BOARD.md)
 
 ### Set Up Watchdog
 
@@ -170,8 +172,9 @@ sessions_spawn({
 3. Define dependencies between tasks
 4. Prioritize tasks (P0/P1/P2)
 5. Create all task files in tasks/phase-{{PHASE_NUM}}/
-6. Update tasks/INDEX.json
-7. Update tasks/BOARD.md
+6. Update tasks/MANIFEST.json (canonical)
+7. Run `node tools/manifest/validate.mjs`
+8. Run `node tools/manifest/render.mjs` (regenerates tasks/INDEX.json + tasks/BOARD.md)
 8. Update docs/ROADMAP.md
 9. Write completion marker
 

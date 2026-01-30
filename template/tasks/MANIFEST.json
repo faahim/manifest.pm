@@ -1,0 +1,26 @@
+{
+  "project": "{{PROJECT_NAME}}",
+  "updated": "{{ISO_TIMESTAMP}}",
+  "phases": [
+    {
+      "id": "phase-0",
+      "name": "Foundation",
+      "status": "not_started"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "P0-001",
+      "phase": "phase-0",
+      "title": "Initialize project structure",
+      "status": "pending",
+      "priority": "P0",
+      "estimateMin": 30,
+      "dependencies": [],
+      "specPath": "tasks/phase-0/P0-001.md",
+      "domain": "pm",
+      "touches": ["tasks/", "docs/", "execution/"],
+      "risk": "low"
+    }
+  ]
+}

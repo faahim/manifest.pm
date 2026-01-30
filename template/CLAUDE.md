@@ -82,29 +82,33 @@ After completing the work, do this IN ORDER:
 
 1. Verify work (build/test if applicable)
 
-2. Update ALL tracking files:
-   - tasks/phase-X/{{TASK_ID}}.md → Status: completed, Completed At, check criteria
-   - tasks/INDEX.json → Update task status + counts
-   - tasks/BOARD.md → Update progress
-   - execution/ACTIVE.json → Remove your claim from claims array
-   - execution/LOG.md → Add completion entry at TOP
+2. Update canonical state (minimum edits):
+   - tasks/MANIFEST.json → set task status to completed + update `updated`
+   - execution/ACTIVE.json → remove your claim from claims array
+   - (optional) tasks/phase-X/{{TASK_ID}}.md → only if task has a long spec / checklist
+   - execution/LOG.md → add ONE short completion entry (append or top; keep it short)
 
-3. Git commit and push:
+3. Validate + render generated artifacts:
+   - `node tools/manifest/validate.mjs`
+   - `node tools/manifest/render.mjs` (regenerates tasks/INDEX.json + tasks/BOARD.md)
+
+4. Git commit and push:
    git add -A
    git commit -m "PM: Completed {{TASK_ID}} - {{BRIEF_DESCRIPTION}}"
    git push
 
-4. Output completion marker (FINAL OUTPUT):
+5. Output completion marker (FINAL OUTPUT):
 
 ===TASK_COMPLETE===
 task_id: {{TASK_ID}}
 status: completed
 files_updated:
-  - tasks/phase-X/{{TASK_ID}}.md
-  - tasks/INDEX.json
-  - tasks/BOARD.md
+  - tasks/MANIFEST.json
   - execution/ACTIVE.json
   - execution/LOG.md
+  - tasks/INDEX.json (generated)
+  - tasks/BOARD.md (generated)
+  - (optional) tasks/phase-X/{{TASK_ID}}.md
 git_pushed: true
 summary: {{ONE_LINE_SUMMARY}}
 ===END_COMPLETE===
@@ -135,9 +139,11 @@ After sub-agent completes:
 
 ```
 1. git pull
-2. Read tasks/INDEX.json
-3. Read execution/ACTIVE.json
+2. Read tasks/MANIFEST.json (canonical task state)
+3. Read execution/ACTIVE.json (claims)
 ```
+
+If you need a human view, read tasks/BOARD.md (generated).
 
 ## After ANY State Change
 
@@ -161,8 +167,9 @@ After sub-agent completes:
 │   ├── REQUIREMENTS.md # Feature specs
 │   └── ARCHITECTURE.md # Technical design
 ├── tasks/              # Task management
-│   ├── INDEX.json      # Master registry
-│   ├── BOARD.md        # Visual board
+│   ├── MANIFEST.json   # Canonical task state (edit this)
+│   ├── INDEX.json      # Generated (compatibility)
+│   ├── BOARD.md        # Generated (human view)
 │   └── phase-N/        # Phase tasks
 ├── execution/          # Runtime state
 │   ├── ACTIVE.json     # Claims
@@ -185,7 +192,7 @@ Use `tasks/PHASE-PLAN-TEMPLATE.md` to plan a new phase:
 3. **Dependencies** — Proper task ordering
 4. **Prioritization** — P0/P1/P2
 5. **Create Task Files** — One file per task
-6. **Update Tracking Files** — INDEX.json, BOARD.md, ROADMAP.md
+6. **Update Canonical Plan** — tasks/MANIFEST.json (+ optional task spec files), ROADMAP.md
 
 ### Task Size Guidelines
 
@@ -208,8 +215,8 @@ sessions_spawn({
 
 ### After Planning
 
-- Update INDEX.json with new tasks
-- Update BOARD.md with phase section
+- Update tasks/MANIFEST.json with new tasks
+- Run `node tools/manifest/render.mjs` to regenerate BOARD.md + INDEX.json
 - Set up watchdog for the phase
 - Start first task or let watchdog handle it
 
@@ -295,11 +302,12 @@ git push
 
 ```
 Update IN ORDER:
-1. tasks/phase-X/TX-XXX.md → completed, check criteria
-2. tasks/INDEX.json → update status + counts
-3. tasks/BOARD.md → update progress
-4. execution/ACTIVE.json → remove your claim from claims array
-5. execution/LOG.md → add entry at TOP
+1. tasks/MANIFEST.json → update task status + updated timestamp
+2. execution/ACTIVE.json → remove your claim
+3. (optional) tasks/phase-X/TX-XXX.md → only if task has a long checklist/spec
+4. execution/LOG.md → add a short entry
+5. `node tools/manifest/validate.mjs`
+6. `node tools/manifest/render.mjs` (regenerates tasks/BOARD.md + tasks/INDEX.json)
 
 git add -A
 git commit -m "PM: Completed T0-001 - <desc>"
@@ -315,18 +323,52 @@ End your response. Do not start another task.
 ## On Failure
 
 ```
-1. Task file → Status: failed, document error
-2. INDEX.json → update status
-3. BOARD.md → update
-4. ACTIVE.json → remove your claim
-5. LOG.md → add failure entry
+1. tasks/MANIFEST.json → set task status: failed (+ updated)
+2. execution/ACTIVE.json → remove your claim
+3. (optional) task spec md → add failure notes
+4. execution/LOG.md → add short failure entry
+5. `node tools/manifest/validate.mjs`
+6. `node tools/manifest/render.mjs`
 
 git add -A && git commit -m "PM: Failed T0-001 - <reason>" && git push
 ```
 
 ---
 
-## INDEX.json Schema
+## MANIFEST.json Schema (Canonical)
+
+`tasks/MANIFEST.json` is the only file that must be kept correct.
+
+```json
+{
+  "project": "{{PROJECT_NAME}}",
+  "updated": "ISO-timestamp",
+  "phases": [{ "id": "phase-0", "name": "Foundation", "status": "not_started" }],
+  "tasks": [
+    {
+      "id": "P0-001",
+      "phase": "phase-0",
+      "title": "Task title",
+      "status": "pending",
+      "priority": "P0",
+      "estimateMin": 30,
+      "dependencies": ["P0-000"],
+      "domain": "notifications",
+      "touches": ["src/notifications/"],
+      "risk": "low",
+      "specPath": "tasks/phase-0/P0-001.md"
+    }
+  ]
+}
+```
+
+Notes:
+- `specPath` is optional — use it only when a task needs a long spec/checklist.
+- `touches/domain/risk` enable safer adaptive parallel decisions.
+
+---
+
+## INDEX.json Schema (Generated)
 
 ```json
 {
@@ -399,9 +441,9 @@ Every 15 min:
 1) cd {{PROJECT_PATH}} && git pull
 
 2) Read state files:
-   - tasks/INDEX.json
+   - tasks/MANIFEST.json
    - execution/ACTIVE.json
-   - tasks/BOARD.md
+   - tasks/BOARD.md (generated)
    - execution/LOG.md (top section)
 
 3) Check ACTIVE.json for stale claims (>30 min):

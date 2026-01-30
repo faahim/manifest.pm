@@ -19,8 +19,8 @@ Everything is in files. Nothing in memory. When a session ends, git has the full
 ### 2. Atomic Execution
 One task per session. Each task is small enough to complete. No half-finished work.
 
-### 3. Registry Sync
-All tracking files (INDEX.json, BOARD.md, etc.) are updated BEFORE the final commit. Never drift.
+### 3. Canonical State + Generated Views
+Only `tasks/MANIFEST.json` (canonical) must be updated by hand. `tasks/INDEX.json` and `tasks/BOARD.md` are generated from it (render before commit).
 
 ### 4. Self-Documenting
 Any agent can read CLAUDE.md and understand exactly how to work on this project.
@@ -52,15 +52,20 @@ Technical design. The "how".
 
 **When to update**: When making architectural decisions.
 
-### tasks/INDEX.json
-Master registry of all tasks. Single source of truth for counts and status.
+### tasks/MANIFEST.json
+Canonical registry of all tasks (statuses, deps, priority, estimates).
 
-**When to update**: Every task status change.
+**When to update**: This is the *only* required task state file to edit.
 
-### tasks/BOARD.md
-Human-readable task board. Visual representation of INDEX.json.
+### tasks/INDEX.json (generated)
+Compatibility/legacy view generated from MANIFEST.json.
 
-**When to update**: Every task status change.
+**When to update**: Never manually. Regenerate via `node tools/manifest/render.mjs`.
+
+### tasks/BOARD.md (generated)
+Human-readable board generated from MANIFEST.json.
+
+**When to update**: Never manually. Regenerate via `node tools/manifest/render.mjs`.
 
 ### tasks/phase-N/PN-XXX.md
 Individual task files with full details.
@@ -129,10 +134,10 @@ When starting a project or completing a phase, use a systematic approach:
    - Use task template from PHASE-PLAN-TEMPLATE.md
    - One file per task in `tasks/phase-N/`
 
-6. **Update Tracking**
-   - INDEX.json: Add all new tasks
-   - BOARD.md: Create phase section
+6. **Update Canonical Plan**
+   - tasks/MANIFEST.json: Add all new tasks (canonical)
    - docs/ROADMAP.md: Update phase status
+   - Run: `node tools/manifest/validate.mjs` then `node tools/manifest/render.mjs` (regenerates BOARD.md + INDEX.json)
 
 ### Planning Session
 
@@ -164,8 +169,8 @@ sessions_spawn({
 
 ### After Planning
 
-- Update INDEX.json with new tasks
-- Update BOARD.md with phase section
+- Update tasks/MANIFEST.json with new tasks
+- Run `node tools/manifest/render.mjs` to regenerate BOARD.md + INDEX.json
 - Set up watchdog for the phase
 - Start first task or let watchdog handle it
 
@@ -195,7 +200,7 @@ If claims exist older than 30 minutes:
 Look at BOARD.md "Ready Queue" or:
 ```bash
 # Tasks with status=pending and all deps completed
-cat tasks/INDEX.json | jq '.tasks[] | select(.status=="pending")'
+cat tasks/MANIFEST.json | jq '.tasks[] | select(.status=="pending")'
 ```
 
 ### 4. Claim Task
@@ -224,41 +229,27 @@ git push
 - Test your work
 
 ### 6. Sync Registry (CRITICAL)
-Update ALL of these before final commit:
 
-**Task file** (`tasks/phase-N/PN-XXX.md`):
-```markdown
-| Status | completed |
-| Completed At | 2025-01-28T16:30:00Z |
+Minimum required edits (canonical state):
 
-## Acceptance Criteria
-- [x] Criterion 1
-- [x] Criterion 2
-```
+**MANIFEST.json** (`tasks/MANIFEST.json`):
+- Set task status to `completed`
+- Update `updated` timestamp
+- (optional) fill `touches/domain/risk` if missing (helps safe parallel)
 
-**INDEX.json**:
-- Increment `summary.completed`
-- Decrement `summary.pending`
-- Update phase counts
-- Update task entry status
+**ACTIVE.json** (`execution/ACTIVE.json`):
+- Remove your claim entry from `claims`
 
-**BOARD.md**:
-- Move task to completed
-- Update phase progress
-- Update ready queue
+**Task spec file** (`tasks/phase-N/PN-XXX.md`) — optional:
+- Only update if the task has a long checklist/spec
 
-**ACTIVE.json**:
-```json
-{"claims": []}
-```
+**LOG.md** (`execution/LOG.md`):
+- Add ONE short completion entry (keep it small)
 
-**LOG.md**:
-```markdown
-### 16:30 UTC — P0-001: Task Title
-- **Status**: ✅ Completed
-- **Session**: your-identifier
-- **Duration**: 30 min
-- **Notes**: What was done
+Then run generators:
+```bash
+node tools/manifest/validate.mjs
+node tools/manifest/render.mjs   # regenerates tasks/INDEX.json + tasks/BOARD.md
 ```
 
 ### 7. Final Commit
@@ -319,9 +310,9 @@ If two agents commit at the same time:
 
 ## Common Pitfalls
 
-### ❌ Forgetting to sync registry
-**Problem**: Task file says "completed" but INDEX.json still says "pending"
-**Solution**: Always update ALL files before final commit
+### ❌ Forgetting to render generated artifacts
+**Problem**: MANIFEST.json is correct, but BOARD.md / INDEX.json look stale
+**Solution**: Run `node tools/manifest/render.mjs` before final commit (and after pulls)
 
 ### ❌ Claiming multiple tasks
 **Problem**: Agent claims P0-001 and P0-002
