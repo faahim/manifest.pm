@@ -25,7 +25,7 @@ Read:
 Autopilot watchdog (every 15 min):
 - **Start-first, schedule-second:** when you start execution, kick off the first ready task immediately (via an executor sub-agent), then schedule the watchdog.
 - **Notify-on-complete (default):** each executor MUST send a DM notification on task completion (task id + 1-line summary + commit hash).
-- **Immediate continuation (default):** after sending the completion DM, the executor should trigger an immediate watchdog run (“kick”), so the next task starts ASAP (cron remains the fallback safety net).
+- **Immediate continuation (default):** after sending the completion DM, the executor should trigger an immediate watchdog run (“kick”) via the scheduler tool/API (not a shell `cron` binary), so the next task starts ASAP (cron remains the fallback safety net).
 - If you run the watchdog in an **isolated** agent session, the cron payload must be:
   - `kind: "agentTurn"`
   - `message: "..."`

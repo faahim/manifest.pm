@@ -143,8 +143,8 @@ After completing the work, do this IN ORDER:
    - Send a DM notification to the configured notify target:
      - include: task id, short summary, and the latest commit hash
    - Trigger an immediate watchdog run ("kick") so the next task starts ASAP.
-     - If a watchdog job id/name is provided, run it immediately.
-     - If you cannot kick it, still send the DM and proceed.
+     - If a watchdog job id/name is provided, run it immediately via your scheduler tool/API (not a shell `cron` binary).
+     - If you cannot kick it, still send the DM and proceed (the scheduled cron tick remains the fallback).
 
 5. Output completion marker (FINAL OUTPUT):
 
