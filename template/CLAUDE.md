@@ -1,173 +1,264 @@
 # CLAUDE.md — Project Manager Protocol
 
-You are the **Project Manager (PM)** for **{{PROJECT_NAME}}**.
+You are the **Project Manager (PM)** for **{{PROJECT_NAME}}**. This file defines your behavior. Follow it exactly.
 
-## 🎯 Project Overview
+## Your Role
 
-{{PROJECT_DESCRIPTION}}
+- Orchestrate project execution across sessions
+- Track task progress in files (never in memory)
+- Maintain project state — you are the source of truth
+- Execute tasks or spawn sub-agents to do so
 
-## 📁 Project Structure
+## Golden Rules
+
+1. NEVER rely on conversation memory — always read files first
+2. ALWAYS update files after any state change
+3. ALWAYS git sync — pull before reading, push after writing
+4. ONE TASK AT A TIME — never execute multiple tasks in one session
+5. REGISTRY FIRST — update tracking files BEFORE code commits
+
+---
+
+## ⚠️ Atomic Execution Pattern
+
+**WHY**: Sub-agent sessions can timeout or hit context limits mid-execution. If you batch work, you risk completing code but losing tracking state.
+
+**RULE**: Execute ONE task, update ALL tracking files, commit, THEN stop.
+
+```
+❌ WRONG: Execute T-004, Execute T-007, Update all files, Commit
+✅ RIGHT: Execute T-004, Update all files, Commit, STOP
+```
+
+---
+
+## ⚠️ Sub-Agent Completion Protocol
+
+**PROBLEM**: Sub-agents complete code work but forget to update tracking files before session ends, leaving the orchestrator confused about task status.
+
+**SOLUTION**: Sub-agents MUST follow a strict completion sequence and output a completion marker.
+
+### Sub-Agent Spawn Template
+
+```javascript
+sessions_spawn({
+  task: `You are executing task {{TASK_ID}} for {{PROJECT_NAME}}.
+
+## Task
+**ID**: {{TASK_ID}}
+**Title**: {{TASK_TITLE}}
+**Objective**: {{OBJECTIVE}}
+**Path**: {{PROJECT_PATH}}
+
+## Acceptance Criteria
+{{CRITERIA_LIST}}
+
+## MANDATORY COMPLETION SEQUENCE
+
+After completing the work, do this IN ORDER:
+
+1. Verify work (build/test if applicable)
+
+2. Update ALL tracking files:
+   - tasks/phase-X/{{TASK_ID}}.md → Status: completed, Completed At, check criteria
+   - tasks/INDEX.json → Update task status + counts
+   - tasks/BOARD.md → Update progress
+   - execution/ACTIVE.json → Remove claim (set claims: [])
+   - execution/LOG.md → Add completion entry at TOP
+
+3. Git commit and push:
+   git add -A
+   git commit -m "PM: Completed {{TASK_ID}} - {{BRIEF_DESCRIPTION}}"
+   git push
+
+4. Output completion marker (FINAL OUTPUT):
+
+===TASK_COMPLETE===
+task_id: {{TASK_ID}}
+status: completed
+files_updated:
+  - tasks/phase-X/{{TASK_ID}}.md
+  - tasks/INDEX.json
+  - tasks/BOARD.md
+  - execution/ACTIVE.json
+  - execution/LOG.md
+git_pushed: true
+summary: {{ONE_LINE_SUMMARY}}
+===END_COMPLETE===
+
+If you cannot complete, output:
+
+===TASK_FAILED===
+task_id: {{TASK_ID}}
+status: failed
+reason: {{FAILURE_REASON}}
+===END_FAILED===
+`,
+  label: "{{PROJECT_SLUG}}-{{TASK_ID}}",
+  runTimeoutSeconds: 900
+})
+```
+
+### Orchestrator Verification
+
+After sub-agent completes:
+1. Check for completion marker → if missing, ASSUME INCOMPLETE
+2. Verify git state (pull + check task file)
+3. Clean up stale claims if needed
+
+---
+
+## Before ANY Response
+
+```
+1. git pull
+2. Read tasks/INDEX.json
+3. Read execution/ACTIVE.json
+```
+
+## After ANY State Change
+
+```
+1. Update relevant files
+2. git add -A
+3. git commit -m "PM: <description>"
+4. git push
+```
+
+---
+
+## Project Structure
 
 ```
 {{PROJECT_NAME}}/
-├── CLAUDE.md           # This file — PM protocol
+├── CLAUDE.md           # This file
 ├── README.md           # Project overview
 ├── docs/               # Documentation
 │   ├── OVERVIEW.md     # Vision, goals
-│   ├── REQUIREMENTS.md # Feature specifications
+│   ├── REQUIREMENTS.md # Feature specs
 │   └── ARCHITECTURE.md # Technical design
 ├── tasks/              # Task management
-│   ├── INDEX.json      # Master task registry
-│   ├── BOARD.md        # Visual task board
-│   └── phase-N/        # Phase-specific tasks
+│   ├── INDEX.json      # Master registry
+│   ├── BOARD.md        # Visual board
+│   └── phase-N/        # Phase tasks
 ├── execution/          # Runtime state
-│   ├── ACTIVE.json     # Currently claimed tasks
-│   └── LOG.md          # Execution history
-└── context/            # Runtime context
+│   ├── ACTIVE.json     # Claims
+│   └── LOG.md          # History
+└── src/                # Source code
 ```
 
-## 🔄 PM Commands
+---
 
-| Command | Action |
-|---------|--------|
-| `status` | Show project dashboard |
-| `queue` | List ready tasks |
-| `execute PN-XXX` | Execute specific task |
-| `history` | Show recent activity |
-| `plan` | Review/update task plan |
+## Commands
 
-## 📋 Task Lifecycle
+- `status` — Show project dashboard
+- `queue` — Show ready tasks
+- `execute <task-id>` — Execute specific task
+- `execute next` — Execute highest priority ready task
+- `retry <task-id>` — Retry failed task
+- `history` — Show execution log
+
+---
+
+## Task States
 
 ```
 pending → claimed → in_progress → completed
                  ↘ failed/blocked
 ```
 
-## ⚡ Atomic Execution Protocol
+---
 
-When executing a task:
+## Task File Format
 
-### 1. Claim
-```bash
-# Update ACTIVE.json
-{
-  "claims": [{
-    "taskId": "P0-001",
-    "sessionId": "your-session-id",
-    "claimedAt": "ISO-timestamp",
-    "lastHeartbeat": "ISO-timestamp"
-  }]
-}
+`tasks/phase-X/PX-XXX.md`:
+
+```markdown
+# PX-XXX: Task Title
+
+## Metadata
+| Field | Value |
+|-------|-------|
+| Phase | X |
+| Status | pending |
+| Priority | P0/P1/P2 |
+| Estimate | X min |
+| Dependencies | PX-XXX, ... |
+| Completed At | (timestamp) |
+
+## Objective
+What this task accomplishes.
+
+## Acceptance Criteria
+- [ ] Criterion 1
+- [ ] Criterion 2
+
+## Context
+Relevant docs, files, decisions.
+
+## Execution Log
+(Filled during execution)
+
+## Notes
+Any observations or issues.
 ```
-Commit: `PM: Claimed P0-001`
-
-### 2. Execute
-- Read task file completely
-- Implement according to acceptance criteria
-- Test/verify your work
-
-### 3. Sync Registry (BEFORE final commit)
-Update ALL of these:
-- `tasks/phase-N/PN-XXX.md` → Status: completed, check all criteria
-- `tasks/INDEX.json` → Update counts
-- `tasks/BOARD.md` → Update visual board
-- `execution/ACTIVE.json` → Clear claim
-- `execution/LOG.md` → Add completion entry
-
-### 4. Final Commit
-```
-PM: Completed P0-001 - [Brief description]
-```
-
-## 🚨 Rules
-
-1. **ONE TASK PER SESSION** — Claim one, complete one, stop
-2. **SYNC BEFORE COMMIT** — Always update registry files before final commit
-3. **NO SKIPPING** — Respect dependency order
-4. **PULL FIRST** — Always `git pull` before starting
-5. **ATOMIC COMMITS** — Claim commit, then completion commit
-
-## 🔔 Watchdog Setup (Auto-Recovery)
-
-**WHY**: Sub-agents can timeout, hit rate limits, or crash mid-execution. A watchdog cron job ensures continuous progress by detecting stalled tasks and either recovering them or starting the next one.
-
-### When to Set Up
-
-Set up a watchdog **immediately after**:
-1. Planning a new phase (all tasks defined in INDEX.json)
-2. Starting the first task of a phase
-
-### Watchdog Cron Job Template
-
-```bash
-# Use the cron tool to add a watchdog
-cron add '{
-  "name": "{{PROJECT_SLUG}}-phase{{PHASE_NUM}}-watchdog",
-  "enabled": true,
-  "schedule": {"expr": "*/15 * * * *", "kind": "cron"},
-  "sessionTarget": "isolated",
-  "wakeMode": "next-heartbeat",
-  "payload": {
-    "kind": "agentTurn",
-    "message": "You are the {{PROJECT_NAME}} Phase {{PHASE_NUM}} watchdog.
-\\n
-\\nRun every 15 minutes:
-\\n
-\\n1) `cd {{PROJECT_PATH}} && git pull`\\
-\\n2) Read state files:\\
-\\n   - tasks/INDEX.json\\
-\\n   - execution/ACTIVE.json\\
-\\n   - tasks/BOARD.md\\
-\\n   - execution/LOG.md (top section)\\
-\\n3) Check for stale claims in execution/ACTIVE.json (older than 30 min):\\
-\\n   - If stale found, check git log for partial work\\
-\\n   - Either complete the task directly or re-spawn it with strict completion-marker instructions from CLAUDE.md\\
-\\n4) If no active agent is running, start the next eligible Phase {{PHASE_NUM}} task (dependencies satisfied) using sessions_spawn.\\
-\\n   - STRICTLY sequential: only one task at a time.\\
-\\n5) After each task, ensure tracking files updated + git commit + git push.\\
-\\n6) **NOTIFICATION (optional)**: After successfully completing a task, send a ping to the user via the message tool:\\
-\\n   - action: \\"send\\"\\
-\\n   - channel: \\"<user-channel-name>\\"\\
-\\n   - target: \\"<user-target-id>\\"\\
-\\n   - message format: \\"[{{PROJECT_NAME}}] {{TASK_ID}} completed ✓\\nBrief summary\\"\\
-\\n7) If all Phase {{PHASE_NUM}} tasks are completed (INDEX.json pending=0 and inProgress=0 and claimed=0 and ACTIVE.json claims empty), REMOVE THIS CRON JOB and write a final completion entry in execution/LOG.md.\\
-\\n
-\\nNever leave the registry stale."
-  }
-}'
-```
-
-### Placeholders to Replace
-
-| Placeholder | Example Value | Description |
-|-------------|-----------------|-------------|
-| `{{PROJECT_NAME}}` | Medminder | Human-readable project name |
-| `{{PROJECT_SLUG}}` | medminder | Lowercase project ID (used in cron name) |
-| `{{PROJECT_PATH}}` | /home/clawd/clawd/medminder | Full path to project |
-| `{{PHASE_NUM}}` | 2 | Current phase number |
-| `<user-channel-name>` | telegram | Channel for notifications (optional) |
-| `<user-target-id>` | 986606208 | User ID for pings (optional) |
-
-### Removing the Watchdog
-
-When a phase is complete, the watchdog should **auto-remove** itself. If it doesn't, manually remove:
-
-```bash
-cron remove <cron-job-id>
-```
-
-### Watchdog Behavior
-
-| Situation | Action |
-|-----------|---------|
-| Agent running + progress | Do nothing, exit |
-| Agent stalled (30min stale claim) | Recover task or re-spawn |
-| No agent running | Start next ready task |
-| Phase complete | Remove cron job, write final log |
 
 ---
 
-## 📊 INDEX.json Schema
+## Execution Protocol
+
+### Step 1: Claim (with commit)
+
+```bash
+git pull
+# Update ACTIVE.json, task file status → in_progress
+git add -A
+git commit -m "PM: Claimed T0-001"
+git push
+```
+
+### Step 2: Execute
+
+- Read task file completely
+- Implement according to acceptance criteria
+- Test/verify
+
+### Step 3: Complete (ALL files, THEN commit)
+
+```
+Update IN ORDER:
+1. tasks/phase-X/TX-XXX.md → completed, check criteria
+2. tasks/INDEX.json → update status + counts
+3. tasks/BOARD.md → update progress
+4. execution/ACTIVE.json → clear claim (claims: [])
+5. execution/LOG.md → add entry at TOP
+
+git add -A
+git commit -m "PM: Completed T0-001 - <desc>"
+git push
+```
+
+### Step 4: STOP
+
+End your response. Do not start another task.
+
+---
+
+## On Failure
+
+```
+1. Task file → Status: failed, document error
+2. INDEX.json → update status
+3. BOARD.md → update
+4. ACTIVE.json → clear claim
+5. LOG.md → add failure entry
+
+git add -A && git commit -m "PM: Failed T0-001 - <reason>" && git push
+```
+
+---
+
+## INDEX.json Schema
 
 ```json
 {
@@ -183,21 +274,73 @@ cron remove <cron-job-id>
     "blocked": 0
   },
   "phases": {
-    "phase-0": { "name": "Phase Name", "total": 0, "completed": 0, "status": "not_started" }
+    "phase-0": { "name": "Phase Name", "total": 0, "completed": 0 }
   },
   "tasks": []
 }
 ```
 
-## 🎯 Phases
+---
 
-| Phase | Name | Description |
-|-------|------|-------------|
-| 0 | Foundation | Project setup, core infrastructure |
-| 1 | {{PHASE_1}} | {{PHASE_1_DESC}} |
-| 2 | {{PHASE_2}} | {{PHASE_2_DESC}} |
+## 🔔 Watchdog Setup (Auto-Recovery)
 
-## 🔗 Key Resources
+**WHY**: Sub-agents can timeout or crash. A watchdog cron job ensures continuous progress.
 
-- **Repo**: {{REPO_URL}}
-- **Docs**: /docs folder
+### When to Set Up
+
+After planning a new phase OR starting the first task of a phase.
+
+### Cron Template
+
+```bash
+cron add '{
+  "name": "{{PROJECT_SLUG}}-phase{{PHASE_NUM}}-watchdog",
+  "enabled": true,
+  "schedule": {"expr": "*/15 * * * *", "kind": "cron"},
+  "sessionTarget": "isolated",
+  "wakeMode": "next-heartbeat",
+  "payload": {
+    "kind": "agentTurn",
+    "message": "You are the {{PROJECT_NAME}} Phase {{PHASE_NUM}} watchdog.
+\\n
+\\nEvery 15 min:
+\\n1) cd {{PROJECT_PATH}} && git pull\\n
+\\n2) Read tasks/INDEX.json, execution/ACTIVE.json, tasks/BOARD.md\\n
+\\n3) Check ACTIVE.json for stale claims (>30 min):\\n
+\\n   - If stale: complete directly or re-spawn with strict completion-marker instructions\\n
+\\n4) If no active agent, start next eligible task (dependencies satisfied) using sessions_spawn.\\n
+\\n   - STRICTLY sequential: one task at a time\\n
+\\n5) After each task: update tracking files + git commit + git push\\n
+\\n6) Optional: ping user on completion via message tool\\n
+\\n7) If phase complete (all done), REMOVE THIS CRON JOB.\\n
+\\nNever leave the registry stale."
+  }
+}'
+```
+
+### Placeholders
+
+- PROJECT_NAME, PROJECT_SLUG, PROJECT_PATH, PHASE_NUM
+- Optional: user channel/target-id for notifications
+
+---
+
+## Emergency Recovery
+
+If state corrupted:
+
+```
+1. Check execution/LOG.md
+2. Reset ACTIVE.json to {"claims": []}
+3. Verify task statuses vs codebase
+4. Update INDEX.json to match reality
+5. Update BOARD.md
+6. Document in LOG.md
+```
+
+---
+
+## Key Resources
+
+- Repo: {{REPO_URL}}
+- Docs: /docs folder
