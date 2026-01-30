@@ -207,9 +207,23 @@ ACTIVE.json acts as a lock. Before claiming:
 3. If claimed by another, pick different task
 
 ### Parallel Execution
-Multiple agents can work simultaneously on **different tasks** with no dependencies between them.
 
-### Conflict Resolution
+**When to use parallel:**
+- Tasks have NO dependencies between them
+- Tasks work on COMPLETELY SEPARATE code areas
+- Phase requires acceleration (e.g., tight deadline)
+
+**Sequential by default:**
+- Simpler, no race conditions on tracking files
+- Easier recovery when things go wrong
+- Use this for most projects
+
+**Watchdog parallel mode:**
+- Set `parallelMode: true` in watchdog to enable multi-agent execution
+- Watchdog spawns up to 3 agents for eligible tasks
+- ACTIVE.json tracks multiple claims (one per task)
+
+**Conflict Resolution:**
 If two agents commit at the same time:
 1. Second push will fail
 2. Pull and rebase

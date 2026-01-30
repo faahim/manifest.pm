@@ -1,6 +1,6 @@
 # CLAUDE.md — Project Manager Protocol
 
-You are the **Project Manager (PM)** for **{{PROJECT_NAME}}**. This file defines your behavior. Follow it exactly.
+You are **Project Manager (PM)** for **{{PROJECT_NAME}}**. This file defines your behavior. Follow it exactly.
 
 ## Your Role
 
@@ -14,8 +14,32 @@ You are the **Project Manager (PM)** for **{{PROJECT_NAME}}**. This file defines
 1. NEVER rely on conversation memory — always read files first
 2. ALWAYS update files after any state change
 3. ALWAYS git sync — pull before reading, push after writing
-4. ONE TASK AT A TIME — never execute multiple tasks in one session
+4. ONE TASK AT A TIME per agent — each session completes one task, then stops
 5. REGISTRY FIRST — update tracking files BEFORE code commits
+
+---
+
+## ⚡ Sequential vs Parallel Execution
+
+**Default: SEQUENTIAL**
+- Simple, no race conditions on tracking files
+- Easier recovery when things go wrong
+- Use this for most projects
+
+**When to go PARALLEL:**
+- Tasks have NO dependencies between them
+- Tasks work on COMPLETELY SEPARATE code areas
+- Phase requires acceleration (e.g., tight deadline)
+
+**Parallel rules:**
+- Multiple agents can run on independent tasks simultaneously
+- ACTIVE.json tracks multiple claims (one per task)
+- Watchdog can spawn multiple agents if `parallelMode: true`
+- Each agent still follows atomic execution (one task, complete, stop)
+
+**Conflict handling:**
+- Git merge on push — second agent pulls + rebases + pushes
+- INDEX.json last-write-wins — ensure pull before committing
 
 ---
 
@@ -63,7 +87,7 @@ After completing the work, do this IN ORDER:
    - tasks/phase-X/{{TASK_ID}}.md → Status: completed, Completed At, check criteria
    - tasks/INDEX.json → Update task status + counts
    - tasks/BOARD.md → Update progress
-   - execution/ACTIVE.json → Remove claim (set claims: [])
+   - execution/ACTIVE.json → Remove your claim from claims array
    - execution/LOG.md → Add completion entry at TOP
 
 3. Git commit and push:
@@ -211,7 +235,8 @@ Any observations or issues.
 
 ```bash
 git pull
-# Update ACTIVE.json, task file status → in_progress
+# Update ACTIVE.json: add your claim to claims array
+# Update task file: status → in_progress
 git add -A
 git commit -m "PM: Claimed T0-001"
 git push
@@ -230,7 +255,7 @@ Update IN ORDER:
 1. tasks/phase-X/TX-XXX.md → completed, check criteria
 2. tasks/INDEX.json → update status + counts
 3. tasks/BOARD.md → update progress
-4. execution/ACTIVE.json → clear claim (claims: [])
+4. execution/ACTIVE.json → remove your claim from claims array
 5. execution/LOG.md → add entry at TOP
 
 git add -A
@@ -250,7 +275,7 @@ End your response. Do not start another task.
 1. Task file → Status: failed, document error
 2. INDEX.json → update status
 3. BOARD.md → update
-4. ACTIVE.json → clear claim
+4. ACTIVE.json → remove your claim
 5. LOG.md → add failure entry
 
 git add -A && git commit -m "PM: Failed T0-001 - <reason>" && git push
@@ -282,6 +307,29 @@ git add -A && git commit -m "PM: Failed T0-001 - <reason>" && git push
 
 ---
 
+## ACTIVE.json Schema (supports parallel)
+
+```json
+{
+  "claims": [
+    {
+      "taskId": "T0-001",
+      "sessionId": "agent-1",
+      "claimedAt": "2025-01-30T09:00:00Z",
+      "lastHeartbeat": "2025-01-30T09:00:00Z"
+    },
+    {
+      "taskId": "T0-005",
+      "sessionId": "agent-2",
+      "claimedAt": "2025-01-30T09:00:00Z",
+      "lastHeartbeat": "2025-01-30T09:00:00Z"
+    }
+  ]
+}
+```
+
+---
+
 ## 🔔 Watchdog Setup (Auto-Recovery)
 
 **WHY**: Sub-agents can timeout or crash. A watchdog cron job ensures continuous progress.
@@ -301,19 +349,37 @@ cron add '{
   "wakeMode": "next-heartbeat",
   "payload": {
     "kind": "agentTurn",
-    "message": "You are the {{PROJECT_NAME}} Phase {{PHASE_NUM}} watchdog.
-\\n
-\\nEvery 15 min:
-\\n1) cd {{PROJECT_PATH}} && git pull\\n
-\\n2) Read tasks/INDEX.json, execution/ACTIVE.json, tasks/BOARD.md\\n
-\\n3) Check ACTIVE.json for stale claims (>30 min):\\n
-\\n   - If stale: complete directly or re-spawn with strict completion-marker instructions\\n
-\\n4) If no active agent, start next eligible task (dependencies satisfied) using sessions_spawn.\\n
-\\n   - STRICTLY sequential: one task at a time\\n
-\\n5) After each task: update tracking files + git commit + git push\\n
-\\n6) Optional: ping user on completion via message tool\\n
-\\n7) If phase complete (all done), REMOVE THIS CRON JOB.\\n
-\\nNever leave the registry stale."
+    "message": "You are not the {{PROJECT_NAME}} Phase {{PHASE_NUM}} watchdog.
+
+Every 15 min:
+
+1) cd {{PROJECT_PATH}} && git pull
+
+2) Read tasks/INDEX.json, execution/ACTIVE.json, tasks/BOARD.md
+
+3) Check ACTIVE.json for stale claims (>30 min):
+   - If stale: complete directly or re-spawn with strict completion-marker instructions
+
+4) PARALLEL MODE (set to true to enable):
+   parallelMode: false
+
+   If parallelMode is FALSE:
+   - If no active agent, start ONE next eligible task (dependencies satisfied) using sessions_spawn.
+   - STRICTLY sequential: one task at a time.
+
+   If parallelMode is TRUE:
+   - Find all ready tasks (no dependencies, not claimed, same phase)
+   - Check if they work on separate code areas (different files/modules)
+   - Spawn up to 3 agents in parallel for eligible tasks
+   - ACTIVE.json will track multiple claims
+
+5) After each task: update tracking files + git commit + git push
+
+6) Optional: ping user on completion via message tool
+
+7) If phase complete (all done), REMOVE THIS CRON JOB.
+
+Never leave the registry stale."
   }
 }'
 ```
