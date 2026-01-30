@@ -172,6 +172,49 @@ After sub-agent completes:
 
 ---
 
+## 📋 Phase Planning
+
+When starting a project or completing a phase, follow the systematic planning process:
+
+### Phase Planning Template
+
+Use `tasks/PHASE-PLAN-TEMPLATE.md` to plan a new phase:
+
+1. **Phase Definition** — Name, objective, success criteria
+2. **Task Breakdown** — Features → tasks (15-45 min each)
+3. **Dependencies** — Proper task ordering
+4. **Prioritization** — P0/P1/P2
+5. **Create Task Files** — One file per task
+6. **Update Tracking Files** — INDEX.json, BOARD.md, ROADMAP.md
+
+### Task Size Guidelines
+
+| Size | Time | Strategy |
+|-------|-------|----------|
+| Small | <15 min | Combine with related task |
+| Ideal | 15-45 min | Perfect |
+| Large | 45-90 min | Split into 2-3 tasks |
+| Too Large | >90 min | Break down into sub-features |
+
+### Planning Session
+
+Use the sessions_spawn template in PHASE-PLAN-TEMPLATE.md to have a sub-agent do the planning:
+
+```bash
+sessions_spawn({
+  task: `You are planning Phase {{PHASE_NUM}} for {{PROJECT_NAME}}...`
+})
+```
+
+### After Planning
+
+- Update INDEX.json with new tasks
+- Update BOARD.md with phase section
+- Set up watchdog for the phase
+- Start first task or let watchdog handle it
+
+---
+
 ## Commands
 
 - `status` — Show project dashboard
@@ -180,6 +223,7 @@ After sub-agent completes:
 - `execute next` — Execute highest priority ready task
 - `retry <task-id>` — Retry failed task
 - `history` — Show execution log
+- `plan phase N` — Spawn sub-agent to plan Phase N
 
 ---
 

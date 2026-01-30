@@ -98,6 +98,79 @@ Execution history. Audit trail of all work done.
 - List tasks that can't start until this completes
 - Helps with pipeline visualization
 
+---
+
+## Phase Planning
+
+When starting a project or completing a phase, use a systematic approach:
+
+### Phase Planning Process
+
+1. **Phase Definition** (tasks/PHASE-PLAN-TEMPLATE.md)
+   - Phase name and objective
+   - Success criteria (how we know it's complete)
+
+2. **Task Breakdown**
+   - List all features for the phase
+   - Break features into tasks (15-45 min each)
+   - Combine small tasks, split large ones
+
+3. **Dependencies**
+   - Define what tasks depend on what
+   - Draw dependency graph if helpful
+   - Ensure no circular dependencies
+
+4. **Prioritization**
+   - P0: Critical for phase completion
+   - P1: Important but can wait
+   - P2: Nice to have
+
+5. **Create Task Files**
+   - Use task template from PHASE-PLAN-TEMPLATE.md
+   - One file per task in `tasks/phase-N/`
+
+6. **Update Tracking**
+   - INDEX.json: Add all new tasks
+   - BOARD.md: Create phase section
+   - docs/ROADMAP.md: Update phase status
+
+### Planning Session
+
+Use the sessions_spawn template to have a sub-agent do the planning:
+
+```bash
+sessions_spawn({
+  task: `You are planning Phase {{PHASE_NUM}} for {{PROJECT_NAME}}.
+  Follow tasks/PHASE-PLAN-TEMPLATE.md...`,
+  label: "{{project}}-plan-phase-{{n}}",
+  runTimeoutSeconds: 1200
+})
+```
+
+### Task Size Guidelines
+
+| Size | Time | Strategy |
+|-------|-------|----------|
+| Small | <15 min | Combine with related task |
+| Ideal | 15-45 min | Perfect |
+| Large | 45-90 min | Split into 2-3 tasks |
+| Too Large | >90 min | Break down into sub-features |
+
+**Signs a task is too large:**
+- Multiple distinct features in one task
+- Involves multiple files/systems
+- Unclear what "done" means
+- Acceptance criteria are vague
+
+### After Planning
+
+- Update INDEX.json with new tasks
+- Update BOARD.md with phase section
+- Set up watchdog for the phase
+- Start first task or let watchdog handle it
+
+---
+
 ## Execution Protocol (Detailed)
 
 ### 1. Session Start
