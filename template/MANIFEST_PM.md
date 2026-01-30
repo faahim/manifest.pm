@@ -23,7 +23,8 @@ Read:
 - `CLAUDE.md`
 
 Autopilot watchdog (every 15 min):
-- If you run it in an **isolated** agent session, the cron payload must be:
+- **Start-first, schedule-second:** when you start execution, kick off the first ready task immediately (via an executor sub-agent), then schedule the watchdog.
+- If you run the watchdog in an **isolated** agent session, the cron payload must be:
   - `kind: "agentTurn"`
   - `message: "..."`
   (Not `text`, and not `systemEvent`.)

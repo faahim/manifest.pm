@@ -29,6 +29,17 @@ One task per session. Each task is small enough to complete. No half-finished wo
 - Stop
 
 ### Autopilot
+
+**Start-first, schedule-second (important UX):**
+When a user requests “start execution / autopilot”, do **not** block the main/orchestrator session doing lots of setup.
+
+Instead:
+1) Do a quick boot (pull → validate → render)
+2) Immediately start work by spawning an executor on the **first available ready task**
+   - If the next step is “plan the next phase”, that planning is a valid first task too
+3) After the first task is kicked off, schedule the watchdog cron (every 15 minutes) to keep going autonomously.
+
+Autopilot behavior:
 - Set up a watchdog cron job scheduled **every 15 minutes**
 - The watchdog continuously executes tasks until the **entire project is done**
 - Parallel is allowed only when clearly safe, up to **3** executor sub-agents at a time
