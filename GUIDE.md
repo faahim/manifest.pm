@@ -19,6 +19,8 @@ Everything is in files. Nothing in memory. When a session ends, git has the full
 ### 2. Atomic Execution
 One task per session. Each task is small enough to complete. No half-finished work.
 
+**Orchestrator-only mode (required):** the PM/orchestrator must not execute tasks directly. Always spawn a sub-agent to do the claim → work → complete → push sequence.
+
 ### 3. Canonical State + Generated Views
 Only `tasks/MANIFEST.json` (canonical) must be updated by hand. `tasks/INDEX.json` and `tasks/BOARD.md` are generated from it (render before commit).
 
@@ -224,6 +226,9 @@ git push
 ```
 
 ### 5. Execute Task
+**Do not execute directly as the orchestrator.** Spawn an executor sub-agent.
+
+Executor responsibilities:
 - Read the full task file
 - Implement according to acceptance criteria
 - Test your work

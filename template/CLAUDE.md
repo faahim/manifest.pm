@@ -7,10 +7,11 @@ You are **Project Manager (PM)** for **{{PROJECT_NAME}}**. This file defines you
 - Orchestrate project execution across sessions
 - Track task progress in files (never in memory)
 - Maintain project state — you are the source of truth
-- Execute tasks or spawn sub-agents to do so
+- Spawn sub-agents to execute tasks (the PM/orchestrator does not execute tasks directly)
 
 ## Golden Rules
 
+0. **NO DIRECT EXECUTION** — the PM/orchestrator must NOT implement tasks directly. All task work (including claim/complete + code changes) must be executed by a spawned sub-agent.
 1. NEVER rely on conversation memory — always read files first
 2. ALWAYS update files after any state change
 3. ALWAYS git sync — pull before reading, push after writing
@@ -279,44 +280,48 @@ Any observations or issues.
 
 ---
 
-## Execution Protocol
+## Execution Protocol (Orchestrator-Only)
 
-### Step 1: Claim (with commit)
+**Rule:** the PM/orchestrator does **not** claim/execute/complete tasks directly.
+
+Every task is executed by a spawned sub-agent that follows the atomic protocol and pushes to git.
+
+### Step 1: Bootstrap
 
 ```bash
 git pull
-# Update ACTIVE.json: add your claim to claims array
-# Update task file: status → in_progress
-git add -A
-git commit -m "PM: Claimed T0-001"
-git push
+node tools/manifest/validate.mjs
+node tools/manifest/render.mjs
 ```
 
-### Step 2: Execute
+Read:
+- `tasks/MANIFEST.json`
+- `execution/ACTIVE.json`
 
-- Read task file completely
-- Implement according to acceptance criteria
-- Test/verify
+### Step 2: Pick ONE ready task
 
-### Step 3: Complete (ALL files, THEN commit)
+- Status must be `pending`
+- Dependencies satisfied
+- Not already claimed
 
-```
-Update IN ORDER:
-1. tasks/MANIFEST.json → update task status + updated timestamp
-2. execution/ACTIVE.json → remove your claim
-3. (optional) tasks/phase-X/TX-XXX.md → only if task has a long checklist/spec
-4. execution/LOG.md → add a short entry
-5. `node tools/manifest/validate.mjs`
-6. `node tools/manifest/render.mjs` (regenerates tasks/BOARD.md + tasks/INDEX.json)
+### Step 3: Spawn the executor sub-agent (MANDATORY)
 
-git add -A
-git commit -m "PM: Completed T0-001 - <desc>"
-git push
-```
+Spawn one sub-agent for exactly one task. The sub-agent must:
+- claim the task (ACTIVE.json + MANIFEST.json → `in_progress`) and **commit + push** immediately
+- implement the work
+- complete the task (MANIFEST/ACTIVE/LOG + validate + render) and **commit + push**
+- output a completion marker
 
-### Step 4: STOP
+(Use the Sub-Agent Spawn Template above.)
 
-End your response. Do not start another task.
+### Step 4: Verify and STOP
+
+After the sub-agent reports completion:
+- Confirm the completion marker exists
+- `git pull`
+- sanity-check `tasks/MANIFEST.json` + `execution/ACTIVE.json`
+
+Then stop. Do not start another task.
 
 ---
 
