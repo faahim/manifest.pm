@@ -35,6 +35,12 @@ One task per session. Each task is small enough to complete. No half-finished wo
 - When a phase completes, autopilot proceeds to the next phase automatically
 - If the next phase has no tasks yet, autopilot spawns a phase-planning sub-agent using `tasks/PHASE-PLAN-TEMPLATE.md`
 
+**Cron payload gotcha (important):**
+- If you schedule the watchdog with `sessionTarget: "isolated"`, the cron payload must be:
+  - `kind: "agentTurn"`
+  - `message: "..."`
+- Do **not** use `payload.kind: "systemEvent"` for isolated runs (that’s for notifications/reminders, not agent execution).
+
 ### 3. Canonical State + Generated Views
 Only `tasks/MANIFEST.json` (canonical) must be updated by hand. `tasks/INDEX.json` and `tasks/BOARD.md` are generated from it (render before commit).
 

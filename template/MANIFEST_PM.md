@@ -21,3 +21,9 @@ node tools/manifest/render.mjs
 
 Read:
 - `CLAUDE.md`
+
+Autopilot watchdog (every 15 min):
+- If you run it in an **isolated** agent session, the cron payload must be:
+  - `kind: "agentTurn"`
+  - `message: "..."`
+  (Not `text`, and not `systemEvent`.)
