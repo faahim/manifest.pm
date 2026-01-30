@@ -43,9 +43,13 @@ Watchdog cron:
 Use when the user says: "autopilot" / "run this project on autopilot".
 
 Behavior:
-- Set up a watchdog cron job that runs every **15 minutes**.
+- Set up a watchdog cron job that runs every **15 minutes** (fallback safety net).
+- Kick off the first ready task immediately.
+- Each executor sub-agent must:
+  - claim/execute/complete exactly one task
+  - **send a DM notification on completion** (task id + 1-line summary + commit hash)
+  - **kick the watchdog to run immediately** after the completion DM (so the next task starts ASAP)
 - The watchdog keeps the project moving until the **entire project is done**.
-- It spawns executor sub-agents to claim/execute/complete tasks.
 
 Autopilot must:
 - detect stale claims and recover (>30 min)
@@ -134,6 +138,13 @@ After completing the work, do this IN ORDER:
    git add -A
    git commit -m "PM: Completed {{TASK_ID}} - {{BRIEF_DESCRIPTION}}"
    git push
+
+4.5 Notify + continue (MANDATORY in autopilot):
+   - Send a DM notification to the configured notify target:
+     - include: task id, short summary, and the latest commit hash
+   - Trigger an immediate watchdog run ("kick") so the next task starts ASAP.
+     - If a watchdog job id/name is provided, run it immediately.
+     - If you cannot kick it, still send the DM and proceed.
 
 5. Output completion marker (FINAL OUTPUT):
 
@@ -536,7 +547,7 @@ Never leave the registry stale."
 ### Placeholders
 
 - PROJECT_NAME, PROJECT_SLUG, PROJECT_PATH, PHASE_NUM
-- Optional: user channel/target-id for notifications
+- Optional (recommended): notify channel/target-id and watchdog job id/name for notifications + immediate continuation
 
 ---
 
