@@ -21,6 +21,20 @@ One task per session. Each task is small enough to complete. No half-finished wo
 
 **Orchestrator-only mode (required):** the PM/orchestrator must not execute tasks directly. Always spawn a sub-agent to do the claim → work → complete → push sequence.
 
+## Modes
+
+### Manual / Regular Execution (default)
+- Spawn **one** executor sub-agent for **one** ready task
+- Verify completion marker + `git pull`
+- Stop
+
+### Autopilot
+- Set up a watchdog cron job scheduled **every 15 minutes**
+- The watchdog continuously executes tasks until the **entire project is done**
+- Parallel is allowed only when clearly safe, up to **3** executor sub-agents at a time
+- When a phase completes, autopilot proceeds to the next phase automatically
+- If the next phase has no tasks yet, autopilot spawns a phase-planning sub-agent using `tasks/PHASE-PLAN-TEMPLATE.md`
+
 ### 3. Canonical State + Generated Views
 Only `tasks/MANIFEST.json` (canonical) must be updated by hand. `tasks/INDEX.json` and `tasks/BOARD.md` are generated from it (render before commit).
 

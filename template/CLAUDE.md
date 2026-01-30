@@ -20,6 +20,43 @@ You are **Project Manager (PM)** for **{{PROJECT_NAME}}**. This file defines you
 
 ---
 
+## Modes
+
+### Mode A — Manual / Regular Execution (default)
+Use when the user says things like: "continue", "execute next", "execute <task-id>".
+
+Behavior:
+- Orchestrator boots (pull → validate → render)
+- Orchestrator chooses **ONE** ready task
+- Orchestrator **spawns ONE executor sub-agent** (MANDATORY)
+- Orchestrator verifies completion marker + `git pull`
+- Orchestrator stops
+
+Parallel:
+- Not default.
+- Only spawn parallel executors when it is **clearly safe** (see below), and never exceed **3** concurrent executors.
+
+Watchdog cron:
+- Not default.
+
+### Mode B — Autopilot
+Use when the user says: "autopilot" / "run this project on autopilot".
+
+Behavior:
+- Set up a watchdog cron job that runs every **15 minutes**.
+- The watchdog keeps the project moving until the **entire project is done**.
+- It spawns executor sub-agents to claim/execute/complete tasks.
+
+Autopilot must:
+- detect stale claims and recover (>30 min)
+- choose ready tasks
+- run **sequential by default**
+- run **parallel only when clearly safe**, max **3** concurrent executors
+- when a phase completes, move on automatically
+- if the next phase has no tasks defined yet, spawn a **phase planning** sub-agent to create tasks and update `tasks/MANIFEST.json` (then validate+render+commit+push)
+
+---
+
 ## ⚡ Sequential vs Parallel Execution
 
 **BIAS: SEQUENTIAL by default**
@@ -420,26 +457,40 @@ Notes:
 
 ---
 
-## 🔔 Watchdog Setup (Auto-Recovery)
+## 🔔 Watchdog Setup (Auto-Recovery + Autopilot)
 
-**WHY**: Sub-agents can timeout or crash. A watchdog cron job ensures continuous progress.
+**WHY**: Sub-agents can timeout/crash; and in **Autopilot mode** we want continuous progress without manual prompting.
 
 ### When to Set Up
 
-After planning a new phase OR starting the first task of a phase.
+- **Autopilot mode**: set up immediately.
+- **Manual mode**: optional; set up when the user asks or when starting a long phase.
 
-### Cron Template
+### Autopilot Watchdog Rules (MANDATORY)
+
+- Schedule: **every 15 minutes** (`*/15 * * * *`)
+- Parallel cap: **max 3** concurrent executor sub-agents
+- Default: sequential unless clearly safe
+- Keep going until the **entire project is done**
+- When a phase is complete, automatically proceed to the next phase
+- If the next phase has **no tasks defined**, spawn a **phase-planning** sub-agent to create tasks:
+  - Create task spec files in `tasks/phase-N/`
+  - Update `tasks/MANIFEST.json` (canonical)
+  - Run validate + render
+  - Commit + push
+
+### Cron Template (Autopilot)
 
 ```bash
 cron add '{
-  "name": "{{PROJECT_SLUG}}-phase{{PHASE_NUM}}-watchdog",
+  "name": "{{PROJECT_SLUG}}-autopilot-watchdog",
   "enabled": true,
   "schedule": {"expr": "*/15 * * * *", "kind": "cron"},
   "sessionTarget": "isolated",
   "wakeMode": "next-heartbeat",
   "payload": {
     "kind": "agentTurn",
-    "message": "You are the {{PROJECT_NAME}} Phase {{PHASE_NUM}} watchdog.
+    "message": "You are the {{PROJECT_NAME}} AUTOPILOT watchdog.
 
 Every 15 min:
 
@@ -451,48 +502,31 @@ Every 15 min:
    - tasks/BOARD.md (generated)
    - execution/LOG.md (top section)
 
-3) Check ACTIVE.json for stale claims (>30 min):
-   - If stale: complete directly or re-spawn with strict completion-marker instructions
+3) Stale claim recovery (>30 min):
+   - If stale: inspect git history/log.
+   - Prefer re-spawning the executor with strict completion-marker instructions.
+   - Clear stale claims only after confirming no active executor is running.
 
-4) ADAPTIVE EXECUTION DECISION:
+4) Decide what to do next:
 
-   BIAS TOWARD SEQUENTIAL — only run parallel when CLEARLY SAFE.
+   A) If there are READY tasks (pending + deps satisfied):
+      - Run sequential by default.
+      - Only run parallel if CLEARLY SAFE, max 3 executors.
+      - Spawn executor sub-agent(s) using the mandatory completion protocol.
 
-   Steps:
-   a) Find all ready tasks (status=pending, dependencies satisfied, same phase)
-   b) For each ready task, read the task file to understand what it touches
-   c) Build a SAFETY CHECK:
+   B) If current phase is complete and the next phase is not started:
+      - If next phase has tasks → proceed to its ready tasks.
+      - If next phase has NO tasks defined → spawn a PHASE-PLANNING sub-agent using tasks/PHASE-PLAN-TEMPLATE.md.
+        The planner must update tasks/MANIFEST.json + generate BOARD/INDEX + commit+push.
 
-      SAFE FOR PARALLEL IF:
-      - Tasks have NO dependencies between them
-      - Tasks work on COMPLETELY SEPARATE code areas (different files, modules, packages)
-      - No shared files, no overlapping concerns (e.g., same API endpoint, same database table)
-      - Each task is in its own isolated domain
+   C) If ALL phases complete and no pending tasks remain:
+      - Write a short final entry in execution/LOG.md
+      - Remove/disable this cron job.
 
-      Example of SAFE parallel:
-      - Task A: Creates UI component X
-      - Task B: Implements API endpoint Y
-      - Task C: Writes tests for module Z
-
-      Example of UNSAFE parallel:
-      - Task A: Modifies src/api/users.ts
-      - Task B: Updates user schema in src/db/users.sql
-      - Task C: Changes user-related UI components
-
-   d) If SAFE to parallel:
-      - Spawn up to 3 agents (max) for eligible tasks
-      - Add all claims to ACTIVE.json before spawning
-      - Each agent follows atomic execution
-
-   e) If NOT safe to parallel:
-      - Spawn ONE agent for the highest priority ready task
-      - Follows standard sequential flow
-
-5) After each task completes: update tracking files + git commit + git push
-
-6) Optional: ping user on completion via message tool
-
-7) If phase complete (all done), REMOVE THIS CRON JOB and write final log entry.
+5) After any recovered/planned work:
+   - Ensure validate + render were run
+   - Ensure canonical state is correct
+   - git add -A && git commit -m \"PM: <what changed>\" && git push
 
 Never leave the registry stale."
   }
