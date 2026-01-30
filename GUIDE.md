@@ -208,20 +208,34 @@ ACTIVE.json acts as a lock. Before claiming:
 
 ### Parallel Execution
 
-**When to use parallel:**
+**ADAPTIVE — watchdog decides based on task analysis**
+
+BIAS: Sequential by default. Only parallel when CLEARLY SAFE.
+
+**Safe parallel conditions:**
 - Tasks have NO dependencies between them
 - Tasks work on COMPLETELY SEPARATE code areas
-- Phase requires acceleration (e.g., tight deadline)
+- No shared files, modules, or database tables
+- No overlapping concerns (e.g., two tasks touching the same API endpoint)
 
-**Sequential by default:**
-- Simpler, no race conditions on tracking files
-- Easier recovery when things go wrong
-- Use this for most projects
+**Examples:**
 
-**Watchdog parallel mode:**
-- Set `parallelMode: true` in watchdog to enable multi-agent execution
-- Watchdog spawns up to 3 agents for eligible tasks
-- ACTIVE.json tracks multiple claims (one per task)
+SAFE (can run parallel):
+- Task A: Creates UI component X
+- Task B: Implements API endpoint Y
+- Task C: Writes tests for module Z
+
+UNSAFE (must run sequential):
+- Task A: Modifies src/api/users.ts
+- Task B: Updates user schema in src/db/users.sql
+- Task C: Changes user-related UI components
+
+**Watchdog logic:**
+1. Find all ready tasks
+2. Read each task file to understand what it touches
+3. Check safety conditions
+4. If safe → spawn up to 3 agents
+5. If unsafe → run one task sequentially
 
 **Conflict Resolution:**
 If two agents commit at the same time:
