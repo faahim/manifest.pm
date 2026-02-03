@@ -39,10 +39,11 @@ Instead:
    - If the next step is “plan the next phase”, that planning is a valid first task too
 3) After the first task is kicked off, schedule the watchdog cron (every 15 minutes) to keep going autonomously.
 
-Autopilot behavior:
-- Set up a watchdog cron job scheduled **every 15 minutes**
-- The watchdog continuously executes tasks until the **entire project is done**
+Autopilot behavior (continuous flow):
+- Set up a watchdog cron job scheduled **every 15 minutes** (fallback safety net)
+- **Primary driver = executor handoff**: when an executor completes, it should immediately spawn the next executor(s) so there is no idle time
 - Parallel is allowed only when clearly safe, up to **3** executor sub-agents at a time
+- To prevent duplicate picks, the dispatcher (handoff or watchdog) must acquire a short-lived `__DISPATCH_LOCK__` in `execution/ACTIVE.json` before spawning
 - When a phase completes, autopilot proceeds to the next phase automatically
 - If the next phase has no tasks yet, autopilot spawns a phase-planning sub-agent using `tasks/PHASE-PLAN-TEMPLATE.md`
 

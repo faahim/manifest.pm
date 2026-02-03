@@ -39,17 +39,18 @@ Parallel:
 Watchdog cron:
 - Not default.
 
-### Mode B — Autopilot
+### Mode B — Autopilot (Continuous “handoff” + Watchdog Safety Net)
 Use when the user says: "autopilot" / "run this project on autopilot".
 
+**Goal:** tasks should keep flowing with **no idle time** between them. The watchdog exists to **recover**, not to be the primary scheduler.
+
 Behavior:
-- Set up a watchdog cron job that runs every **15 minutes** (fallback safety net).
+- Set up a watchdog cron job that runs every **15 minutes** (**fallback** safety net).
 - Kick off the first ready task immediately.
 - Each executor sub-agent must:
   - claim/execute/complete exactly one task
   - **send a DM notification on completion** (task id + 1-line summary + commit hash)
-  - **kick the watchdog to run immediately** after the completion DM (so the next task starts ASAP)
-- The watchdog keeps the project moving until the **entire project is done**.
+  - **perform an immediate handoff** by spawning the next executor(s) itself (see “Handoff Dispatcher” below)
 
 Autopilot must:
 - detect stale claims and recover (>30 min)
@@ -58,6 +59,8 @@ Autopilot must:
 - run **parallel only when clearly safe**, max **3** concurrent executors
 - when a phase completes, move on automatically
 - if the next phase has no tasks defined yet, spawn a **phase planning** sub-agent to create tasks and update `tasks/MANIFEST.json` (then validate+render+commit+push)
+
+**Important:** Do not rely on "kicking" cron for immediate continuation; cron scheduling can be non-immediate. Use executor handoff as the primary driver.
 
 ---
 
@@ -81,6 +84,21 @@ Run tasks one at a time unless parallel is CLEARLY SAFE.
 **Conflict handling:**
 - Git merge on push — second agent pulls + rebases + pushes
 - INDEX.json last-write-wins — ensure pull before committing
+
+### Parallel Dispatch (how to do it safely)
+Only the **dispatcher** (handoff or watchdog) is allowed to start new work.
+
+Algorithm:
+1) Acquire `__DISPATCH_LOCK__` in `execution/ACTIVE.json`
+2) Compute capacity: `freeSlots = maxParallel - activeTaskClaims`
+3) Select up to `freeSlots` tasks that are:
+   - `pending`
+   - dependencies satisfied
+   - **no overlapping `touches`** (and avoid parallelizing anything touching `prisma/` or migrations)
+4) Spawn one executor per selected task
+5) Release the dispatch lock
+
+Default behavior remains sequential: if there is any doubt about safety, spawn only **one**.
 
 ---
 
@@ -142,9 +160,19 @@ After completing the work, do this IN ORDER:
 4.5 Notify + continue (MANDATORY in autopilot):
    - Send a DM notification to the configured notify target:
      - include: task id, short summary, and the latest commit hash
-   - Trigger an immediate watchdog run ("kick") so the next task starts ASAP.
-     - If a watchdog job id/name is provided, run it immediately via your scheduler tool/API (not a shell `cron` binary).
-     - If you cannot kick it, still send the DM and proceed (the scheduled cron tick remains the fallback).
+
+   - **Immediate Handoff (primary continuation):** attempt to start the next task(s) immediately.
+
+     Steps (safe + race-free):
+     1) `git pull --rebase`
+     2) Re-read `tasks/MANIFEST.json` and `execution/ACTIVE.json`
+     3) If any non-lock claims exist → STOP (someone else is running)
+     4) Acquire a short-lived **dispatch lock** in `execution/ACTIVE.json` (see schema below)
+     5) Pick up to N ready tasks (sequential default; parallel only when clearly safe; max 3 total active claims)
+     6) Spawn executor sub-agent(s) for those tasks
+     7) Release the dispatch lock
+
+   - **Watchdog kick (fallback only):** if handoff fails for any reason, do nothing else. The watchdog cron will recover on the next tick.
 
 5. Output completion marker (FINAL OUTPUT):
 
@@ -445,26 +473,36 @@ Notes:
 
 ---
 
-## ACTIVE.json Schema (supports parallel)
+## ACTIVE.json Schema (supports parallel + dispatch lock)
+
+`execution/ACTIVE.json` is both:
+- the list of currently running task claims (parallel workers)
+- a lightweight coordination mechanism to prevent duplicate scheduling
 
 ```json
 {
   "claims": [
     {
-      "taskId": "T0-001",
-      "sessionId": "agent-1",
+      "taskId": "P0-001",
+      "sessionId": "executor-1",
       "claimedAt": "2025-01-30T09:00:00Z",
-      "lastHeartbeat": "2025-01-30T09:00:00Z"
+      "lastHeartbeat": "2025-01-30T09:05:00Z"
     },
     {
-      "taskId": "T0-005",
-      "sessionId": "agent-2",
-      "claimedAt": "2025-01-30T09:00:00Z",
-      "lastHeartbeat": "2025-01-30T09:00:00Z"
+      "taskId": "__DISPATCH_LOCK__",
+      "sessionId": "dispatcher",
+      "claimedAt": "2025-01-30T09:05:10Z",
+      "expiresAt": "2025-01-30T09:07:10Z"
     }
   ]
 }
 ```
+
+Rules:
+- Normal task claims: `taskId` is a real task id.
+- Dispatch lock claim: `taskId` must be exactly `__DISPATCH_LOCK__` and MUST include a near-term `expiresAt`.
+- The dispatcher (handoff or watchdog) must acquire the lock before spawning executors.
+- If the lock is expired, it may be removed during recovery.
 
 ---
 
