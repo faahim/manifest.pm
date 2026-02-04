@@ -20,6 +20,31 @@ You are **Project Manager (PM)** for **{{PROJECT_NAME}}**. This file defines you
 
 ---
 
+## Model Selection (Cost/Token Efficiency)
+
+Every time you spawn a sub-agent (executor, phase-planner, watchdog handoff), you MUST choose an appropriate model.
+
+### Supported model aliases
+- `sonnet` — cheapest/fastest for well-specified mechanical work
+- `codex` — default for most implementation/debugging
+- `opus` — for high-risk, security-sensitive, or very complex tasks
+
+### How to decide (default heuristic)
+1) **Phase planning** → always `opus`
+2) If task has an explicit override `modelHint` → use it (one of: `sonnet` | `codex` | `opus`)
+3) If **risk = high** OR touches **`prisma/`** / migrations OR domain includes **security/auth/payments/finance** → `opus`
+4) If the task is ambiguous/novel or needs heavy reasoning across many files → `codex`
+5) If the task is clearly defined and mostly "follow instructions" (UI wiring, refactors, docs, formatting) → `sonnet`
+
+### Optional helper
+If present, prefer:
+```bash
+node tools/manifest/pick-model.mjs <TASK_ID>
+```
+It prints `sonnet`/`codex`/`opus`.
+
+---
+
 ## Modes
 
 ### Mode A — Manual / Regular Execution (default)
@@ -199,6 +224,7 @@ reason: {{FAILURE_REASON}}
 ===END_FAILED===
 `,
   label: "{{PROJECT_SLUG}}-{{TASK_ID}}",
+  model: "{{MODEL}}", // required: sonnet | codex | opus (see Model Selection)
   runTimeoutSeconds: 900
 })
 ```
