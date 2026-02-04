@@ -520,6 +520,11 @@ Rules:
 - Schedule: **every 15 minutes** (`*/15 * * * *`)
 - Parallel cap: **max 3** concurrent executor sub-agents
 - Default: sequential unless clearly safe
+- **Singleton rule:** there must be **at most one enabled watchdog** per project.
+  - Before creating a new watchdog, list existing cron jobs by name.
+  - If one already exists for this project, **reuse it** (do not create duplicates).
+  - If duplicates exist, disable/remove the extras.
+  - Record the canonical watchdog job id in `execution/AUTOPILOT.json`.
 - Keep going until the **entire project is done**
 - When a phase is complete, automatically proceed to the next phase
 - If the next phase has **no tasks defined**, spawn a **phase-planning** sub-agent to create tasks:
@@ -527,6 +532,7 @@ Rules:
   - Update `tasks/MANIFEST.json` (canonical)
   - Run validate + render
   - Commit + push
+- **Mandatory cleanup:** when the project is complete (no pending tasks + no active claims), the watchdog must **disable/remove itself** so it does not burn tokens forever.
 
 ### Cron Template (Autopilot)
 
@@ -543,12 +549,18 @@ cron add '{
 
 Every 15 min:
 
-1) cd {{PROJECT_PATH}} && git pull
+0) **Cheap pre-check (do this BEFORE git/network work):**
+   - Read `tasks/MANIFEST.json` + `execution/ACTIVE.json`
+   - If `pendingTasks == 0` AND there are **no active task claims** → **CLEAN UP NOW** (see step 4C) and exit.
 
-2) Read state files:
+1) Only if work may be needed (pending tasks exist OR stale recovery is possible):
+   - cd {{PROJECT_PATH}}
+   - `git pull --rebase` (or pull)
+
+2) Read state files (after pull):
    - tasks/MANIFEST.json
    - execution/ACTIVE.json
-   - tasks/BOARD.md (generated)
+   - tasks/BOARD.md (generated, optional)
    - execution/LOG.md (top section)
 
 3) Stale claim recovery (>30 min):
@@ -568,9 +580,11 @@ Every 15 min:
       - If next phase has NO tasks defined → spawn a PHASE-PLANNING sub-agent using tasks/PHASE-PLAN-TEMPLATE.md.
         The planner must update tasks/MANIFEST.json + generate BOARD/INDEX + commit+push.
 
-   C) If ALL phases complete and no pending tasks remain:
-      - Write a short final entry in execution/LOG.md
-      - Remove/disable this cron job.
+   C) If ALL phases complete and no pending tasks remain (project complete):
+      - Write a short final entry in execution/LOG.md (optional if already logged)
+      - **Disable/remove this cron job immediately** (do not just "exit")
+      - Update `execution/AUTOPILOT.json` with `disabledAt` and clear `jobId` (best-effort)
+      - Exit.
 
 5) After any recovered/planned work:
    - Ensure validate + render were run

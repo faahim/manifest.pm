@@ -44,6 +44,9 @@ Autopilot behavior (continuous flow):
 - **Primary driver = executor handoff**: when an executor completes, it should immediately spawn the next executor(s) so there is no idle time
 - Parallel is allowed only when clearly safe, up to **3** executor sub-agents at a time
 - To prevent duplicate picks, the dispatcher (handoff or watchdog) must acquire a short-lived `__DISPATCH_LOCK__` in `execution/ACTIVE.json` before spawning
+- **Singleton watchdog rule (critical):** keep **at most one enabled watchdog** per project. Reuse an existing job; disable/remove duplicates.
+- Record the watchdog scheduler job id in `execution/AUTOPILOT.json` so future sessions can clean up reliably.
+- **Mandatory cleanup (critical):** when the project is complete (0 pending tasks + 0 active claims), the watchdog must **disable/remove itself immediately**.
 - When a phase completes, autopilot proceeds to the next phase automatically
 - If the next phase has no tasks yet, autopilot spawns a phase-planning sub-agent using `tasks/PHASE-PLAN-TEMPLATE.md`
 

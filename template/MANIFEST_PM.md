@@ -27,7 +27,11 @@ Autopilot (continuous handoff) + watchdog (safety net):
 - **Notify-on-complete (default):** each executor MUST send a DM notification on task completion (task id + 1-line summary + commit hash).
 - **Immediate continuation (primary):** after completing a task, the executor should **handoff** by spawning the next executor(s) itself (sequential by default; parallel only when clearly safe; max 3).
 - **Dispatch lock (required for reliability):** before spawning, the dispatcher must acquire `__DISPATCH_LOCK__` in `execution/ACTIVE.json` (short-lived + expiring) to prevent duplicate picks.
-- **Watchdog is fallback:** every 15 min it recovers stale claims and restarts work if idle. Don’t depend on “kicking” cron for immediate continuation.
+- **Watchdog is fallback:** every 15 min it recovers stale claims and restarts work if idle.
+- **Singleton + cleanup rules (critical):**
+  - Keep **at most one enabled watchdog** per project.
+  - Record the watchdog scheduler job id in `execution/AUTOPILOT.json`.
+  - When `pendingTasks==0` and no active claims, the watchdog must **disable/remove itself immediately**.
 - If you run the watchdog in an **isolated** agent session, the cron payload must be:
   - `kind: "agentTurn"`
   - `message: "..."`
