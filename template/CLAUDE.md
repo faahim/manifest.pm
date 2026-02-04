@@ -184,7 +184,7 @@ After completing the work, do this IN ORDER:
 
 4.5 Notify + continue (MANDATORY in autopilot):
    - Send a DM notification to the configured notify target:
-     - include: task id, short summary, and the latest commit hash
+     - include: task id, chosen model (`sonnet`/`codex`/`opus`), short summary, and the latest commit hash
 
    - **Immediate Handoff (primary continuation):** attempt to start the next task(s) immediately.
 
