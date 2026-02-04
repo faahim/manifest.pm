@@ -22,6 +22,13 @@ node tools/manifest/render.mjs
 Read:
 - `CLAUDE.md`
 
+Model selection (cost control):
+- Use `opus` for phase planning and high-risk tasks.
+- Use `codex` for most implementation/debugging.
+- Use `sonnet` for well-specified mechanical tasks.
+- Optional helper: `node tools/manifest/pick-model.mjs <TASK_ID>`
+- Optional per-task override: add `modelHint: "sonnet"|"codex"|"opus"` in `tasks/MANIFEST.json`.
+
 Autopilot (continuous handoff) + watchdog (safety net):
 - **Start-first, schedule-second:** when you start execution, kick off the first ready task immediately (via an executor sub-agent), then schedule the watchdog.
 - **Notify-on-complete (default):** each executor MUST send a DM notification on task completion (task id + 1-line summary + commit hash).
