@@ -186,7 +186,8 @@ After completing the work, do this IN ORDER:
    - Send a DM notification to the configured notify target:
      - include: task id, chosen model (`sonnet`/`codex`/`opus`), short summary, and the latest commit hash
 
-   - **Immediate Handoff (primary continuation):** attempt to start the next task(s) immediately.
+   - **Immediate Handoff (primary continuation, REQUIRED):** attempt to start the next task(s) immediately.
+     - This is the primary driver of autopilot. Do NOT rely on the 15-min watchdog tick.
 
      Steps (safe + race-free):
      1) `git pull --rebase`
@@ -194,8 +195,11 @@ After completing the work, do this IN ORDER:
      3) If any non-lock claims exist → STOP (someone else is running)
      4) Acquire a short-lived **dispatch lock** in `execution/ACTIVE.json` (see schema below)
      5) Pick up to N ready tasks (sequential default; parallel only when clearly safe; max 3 total active claims)
-     6) Spawn executor sub-agent(s) for those tasks
-     7) Release the dispatch lock
+     6) For each picked task, choose model:
+        - If available: `node tools/manifest/pick-model.mjs <TASK_ID>`
+        - Else: apply the Model Selection heuristic (sonnet/codex/opus)
+     7) Spawn executor sub-agent(s) for those tasks using `sessions_spawn(..., model: <chosen>)`
+     8) Release the dispatch lock
 
    - **Watchdog kick (fallback only):** if handoff fails for any reason, do nothing else. The watchdog cron will recover on the next tick.
 
