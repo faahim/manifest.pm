@@ -532,7 +532,7 @@ Rules:
   - Update `tasks/MANIFEST.json` (canonical)
   - Run validate + render
   - Commit + push
-- **Mandatory cleanup:** when the project is complete (no pending tasks + no active claims), the watchdog must **disable/remove itself** so it does not burn tokens forever.
+- **Mandatory cleanup:** when the project is complete (no pending tasks + no active claims), the watchdog must **REMOVE itself** (delete the cron job) so it does not burn tokens forever.
 
 ### Cron Template (Autopilot)
 
@@ -582,7 +582,7 @@ Every 15 min:
 
    C) If ALL phases complete and no pending tasks remain (project complete):
       - Write a short final entry in execution/LOG.md (optional if already logged)
-      - **Disable/remove this cron job immediately** (do not just "exit")
+      - **REMOVE this cron job immediately** (delete the cron job; do not just "exit")
       - Update `execution/AUTOPILOT.json` with `disabledAt` and clear `jobId` (best-effort)
       - Exit.
 

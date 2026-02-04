@@ -46,7 +46,7 @@ Autopilot behavior (continuous flow):
 - To prevent duplicate picks, the dispatcher (handoff or watchdog) must acquire a short-lived `__DISPATCH_LOCK__` in `execution/ACTIVE.json` before spawning
 - **Singleton watchdog rule (critical):** keep **at most one enabled watchdog** per project. Reuse an existing job; disable/remove duplicates.
 - Record the watchdog scheduler job id in `execution/AUTOPILOT.json` so future sessions can clean up reliably.
-- **Mandatory cleanup (critical):** when the project is complete (0 pending tasks + 0 active claims), the watchdog must **disable/remove itself immediately**.
+- **Mandatory cleanup (critical):** when the project is complete (0 pending tasks + 0 active claims), the watchdog must **REMOVE itself immediately** (delete the cron job).
 - When a phase completes, autopilot proceeds to the next phase automatically
 - If the next phase has no tasks yet, autopilot spawns a phase-planning sub-agent using `tasks/PHASE-PLAN-TEMPLATE.md`
 

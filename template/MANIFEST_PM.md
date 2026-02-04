@@ -31,7 +31,7 @@ Autopilot (continuous handoff) + watchdog (safety net):
 - **Singleton + cleanup rules (critical):**
   - Keep **at most one enabled watchdog** per project.
   - Record the watchdog scheduler job id in `execution/AUTOPILOT.json`.
-  - When `pendingTasks==0` and no active claims, the watchdog must **disable/remove itself immediately**.
+  - When `pendingTasks==0` and no active claims, the watchdog must **REMOVE itself immediately** (delete the cron job).
 - If you run the watchdog in an **isolated** agent session, the cron payload must be:
   - `kind: "agentTurn"`
   - `message: "..."`
