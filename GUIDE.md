@@ -41,9 +41,25 @@ Instead:
 
 Autopilot behavior (continuous flow):
 - Set up a watchdog cron job scheduled **every 15 minutes** (fallback safety net)
-- **Primary driver = executor handoff**: when an executor completes, it should immediately spawn the next executor(s) so there is no idle time
+- **Primary driver = executor handoff**: when an executor completes, it must immediately spawn the next executor(s) so there is no idle time
 - Parallel is allowed only when clearly safe, up to **3** executor sub-agents at a time
 - To prevent duplicate picks, the dispatcher (handoff or watchdog) must acquire a short-lived `__DISPATCH_LOCK__` in `execution/ACTIVE.json` before spawning
+
+**Critical: make handoff deterministic (copy/paste block)**
+
+Every executor prompt MUST include this block verbatim, and any executor it spawns must include the same block again (recursive chaining):
+
+```text
+AFTER_COMPLETION_HANDOFF (MANDATORY):
+After you finish and push <TASK_ID>, you must attempt to dispatch the next task.
+1) git pull --rebase
+2) Read tasks/MANIFEST.json + execution/ACTIVE.json
+3) If any claims exist: STOP (someone else is running)
+4) Acquire a __DISPATCH_LOCK__ claim in execution/ACTIVE.json (commit+push)
+5) Pick the next READY task (deps satisfied, status pending). Default sequential.
+6) Spawn the next executor sub-agent for that task WITH THIS SAME HANDOFF BLOCK.
+7) Release __DISPATCH_LOCK__ (commit+push)
+```
 - **Singleton watchdog rule (critical):** keep **at most one enabled watchdog** per project. Reuse an existing job; disable/remove duplicates.
 - Record the watchdog scheduler job id in `execution/AUTOPILOT.json` so future sessions can clean up reliably.
 - **Mandatory cleanup (critical):** when the project is complete (0 pending tasks + 0 active claims), the watchdog must **REMOVE itself immediately** (delete the cron job).
